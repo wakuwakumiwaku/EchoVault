@@ -1,4 +1,4 @@
-# 🛡️ EchoVault
+# EchoVault
 > **The Silent Sentinel for Your Data.**
 
 ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
@@ -7,21 +7,32 @@
 
 **EchoVault** is a robust, lightweight, and real-time backup utility written in Python. It acts as a silent guardian for your most critical directories, instantly mirroring changes to a secure backup location while preserving file history.
 
-Unlike standard sync tools that propagate deletions immediately, **EchoVault** prioritizes safety. When a file is modified or deleted in the source, the old version is archived rather than destroyed, giving you a fail-safe against accidental data loss.
+> [!IMPORTANT]
+> **Safety First Protocol**
+> Unlike standard sync tools that propagate deletions immediately, **EchoVault** prioritizes data integrity. When a file is modified or deleted in the source, the old version is **archived** rather than destroyed, giving you a fail-safe against accidental data loss.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **⚡ Real-Time Synchronization**: Leverages `watchdog` to detect file system events (create, move, modify) the moment they happen.
-- **🛡️ Safe Deletion Protocol**: Files deleted in the source are **not** deleted in the destination. Instead, they are moved to a timestamped `_deleted_history` archive.
-- **🔍 Smart Integrity Checks**: Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
-- **🚀 Fast Initial Sync**: On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
-- **👻 Silent Operation**: Includes a VBScript launcher (`silent_launcher.vbs`) to run the process invisibly in the background.
+### `Real-Time Synchronization`
+Leverages `watchdog` to detect file system events (create, move, modify) the moment they happen.
+
+### `Safe Deletion Protocol`
+Files deleted in the source are **not** deleted in the destination. Instead, they are moved to a timestamped `_deleted_history` archive.
+
+### `Smart Integrity Checks`
+Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
+
+### `Fast Initial Sync`
+On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
+
+### `Silent Operation`
+Includes a VBScript launcher (`silent_launcher.vbs`) to run the process invisibly in the background.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Python 3.8 or higher
@@ -31,7 +42,7 @@ Unlike standard sync tools that propagate deletions immediately, **EchoVault** p
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/yourusername/echovault.git
+    git clone https://github.com/wakuwakumiwaku/echovault.git
     cd echovault
     ```
 
@@ -42,7 +53,7 @@ Unlike standard sync tools that propagate deletions immediately, **EchoVault** p
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 Open `echo_vault.py` in your favorite text editor. Locate the `BACKUP_PAIRS` (or `paths` in the main block) configuration section:
 
@@ -54,14 +65,15 @@ paths = {
 }
 ```
 
-*   **Key**: The source directory you want to watch.
-*   **Value**: The destination directory where backups will be stored.
+-   **Key**: The source directory you want to watch.
+-   **Value**: The destination directory where backups will be stored.
 
-> **Note:** Use raw strings (`r"..."`) for Windows paths to avoid escape character issues.
+> [!TIP]
+> Use raw strings (`r"..."`) for Windows paths to avoid escape character issues.
 
 ---
 
-## 🖥️ Usage
+## Usage
 
 ### Manual Start
 Run the script directly in your terminal to see real-time logs:
@@ -81,7 +93,7 @@ To run EchoVault silently in the background (perfect for startup):
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 EchoVault/
@@ -94,7 +106,7 @@ EchoVault/
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome!
 1.  Fork the Project
@@ -105,6 +117,6 @@ Contributions are welcome!
 
 ---
 
-## 📜 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
