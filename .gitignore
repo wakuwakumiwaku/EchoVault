@@ -1,5 +1,35 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypotheses
+
+# IDEs
 .idea/
 .vscode/
+*.swp
+*.swo
+
+# Project specific
 test_data/
+backups/
+_deleted_history/

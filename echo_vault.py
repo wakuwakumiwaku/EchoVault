@@ -9,8 +9,9 @@ from watchdog.events import FileSystemEventHandler
 
 # --- CONFIGURATION (Default, can be overridden) ---
 BACKUP_PAIRS = {
-    # Add your paths here or pass them as arguments
-    # r"B:": r"S:\Backup Baka",
+    r"B:\\": r"S:\Backup Baka",
+    r"G:\\": r"S:\Backup Sherpa",
+    r"J:\MCfragen": r"S:\Backup Twentytons\MC Fragen"
 }
 
 IGNORE_DIRS = {
@@ -118,21 +119,54 @@ class SafeBackupHandler(FileSystemEventHandler):
             except Exception as e:
                 logging.error(f"Failed to archive {backup_file_path}: {e}")
 
+def run_initial_sync(source, destination, handler):
+    """Scans all existing files in source and syncs them to destination using FAST check (size/time)."""
+    logging.info(f"--- Starting Fast Initial Sync: {source} ---")
+    for root, dirs, files in os.walk(source):
+        # Filter out ignored directories
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+        
+        for file in files:
+            src_path = os.path.join(root, file)
+            dest_path = handler._get_dest_path(src_path)
+            
+            # Fast check: If destination exists, compare size and last modified time
+            if os.path.exists(dest_path):
+                try:
+                    src_stat = os.stat(src_path)
+                    dest_stat = os.stat(dest_path)
+                    
+                    if src_stat.st_size == dest_stat.st_size and \
+                       abs(src_stat.st_mtime - dest_stat.st_mtime) < 1.0:
+                        continue # Skip to next file
+                except OSError:
+                    pass
+            
+            # If we're here, we need to sync it
+            handler.sync_file(src_path)
+            
+    logging.info(f"--- Initial Sync Complete: {source} ---")
+
 if __name__ == "__main__":
     observer = Observer()
-    print("--- EchoVault Backup Sentinel ---")
-    
-    # You can add your paths here
+    print("--- EchoVault Backup Sentinel (v1.1 - With Fast Initial Sync) ---")
+
+    # Configuration
     paths = {
-        r"B:": r"S:\Backup Baka",
-        r"G:": r"S:\Backup Sherpa",
+        r"B:\\": r"S:\Backup Baka",
+        r"G:\\": r"S:\Backup Sherpa",
         r"J:\MCfragen": r"S:\Backup Twentytons\MC Fragen"
     }
 
     for src, dest in paths.items():
         if os.path.exists(src):
-            print(f"Watching: {src} -> {dest}")
             event_handler = SafeBackupHandler(src, dest)
+
+            # 1. Run Initial Sync for existing files
+            run_initial_sync(src, dest, event_handler)
+
+            # 2. Schedule Real-time Observer
+            print(f"Watching: {src} -> {dest}")
             observer.schedule(event_handler, src, recursive=True)
         else:
             logging.error(f"Source path not found: {src}")
