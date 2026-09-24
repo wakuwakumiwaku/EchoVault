@@ -3,6 +3,9 @@ import os
 import shutil
 import time
 import tempfile
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 from watchdog.observers import Observer
 from echo_vault import SafeBackupHandler
 
@@ -95,6 +98,65 @@ class TestEchoVault(unittest.TestCase):
             
         archived_file = os.path.join(history_dir, timestamp_folders[0], "delete_me.txt")
         self.assertTrue(os.path.exists(archived_file), "File should be inside history folder")
+
+class TestArchiveCollisions(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.source = Path(temporary.name) / "source"
+        self.backup = Path(temporary.name) / "backup"
+        self.source.mkdir()
+        self.backup.mkdir()
+        self.handler = SafeBackupHandler(str(self.source), str(self.backup))
+        clock = patch("echo_vault.datetime")
+        mocked_clock = clock.start()
+        self.addCleanup(clock.stop)
+        mocked_clock.now.return_value = datetime(2026, 1, 2, 3, 4, 5)
+        self.history = self.backup / "_deleted_history" / "2026-01-02_03-04-05"
+
+    def archive(self, relative_path, contents):
+        backup_file = self.backup / relative_path
+        backup_file.parent.mkdir(parents=True, exist_ok=True)
+        backup_file.write_text(contents, encoding="utf-8")
+        self.handler.archive_file(str(self.source / relative_path))
+        self.assertFalse(backup_file.exists())
+
+    def archived_contents(self):
+        return {
+            path.name: path.read_text(encoding="utf-8")
+            for path in self.history.iterdir()
+        }
+
+    def test_same_basename_from_different_directories_keeps_both_files(self):
+        self.archive("a/notes.txt", "first")
+        self.archive("b/notes.txt", "second")
+        self.assertEqual(self.archived_contents(), {
+            "notes.txt": "first", "notes_1.txt": "second",
+        })
+
+    def test_repeated_archive_of_same_path_keeps_every_version(self):
+        self.archive("notes.txt", "first")
+        self.archive("notes.txt", "second")
+        self.archive("notes.txt", "third")
+        self.assertEqual(self.archived_contents(), {
+            "notes.txt": "first", "notes_1.txt": "second", "notes_2.txt": "third",
+        })
+
+    def test_existing_suffix_is_not_overwritten(self):
+        self.archive("a/notes.txt", "first")
+        self.archive("b/notes_1.txt", "unrelated")
+        self.archive("c/notes.txt", "second")
+        self.assertEqual(self.archived_contents(), {
+            "notes.txt": "first", "notes_1.txt": "unrelated", "notes_2.txt": "second",
+        })
+
+    def test_noncolliding_files_keep_existing_archive_layout(self):
+        self.archive("a/first.txt", "first")
+        self.archive("b/second.txt", "second")
+        self.assertEqual(self.archived_contents(), {
+            "first.txt": "first", "second.txt": "second",
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

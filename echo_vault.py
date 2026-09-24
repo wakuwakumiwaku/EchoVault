@@ -113,6 +113,11 @@ class SafeBackupHandler(FileSystemEventHandler):
             history_dir = os.path.join(self.dest_root, "_deleted_history", timestamp)
             os.makedirs(history_dir, exist_ok=True)
             target_archive = os.path.join(history_dir, filename)
+            stem, extension = os.path.splitext(filename)
+            suffix = 1
+            while os.path.lexists(target_archive):
+                target_archive = os.path.join(history_dir, f"{stem}_{suffix}{extension}")
+                suffix += 1
             try:
                 shutil.move(backup_file_path, target_archive)
                 logging.info(f"ARCHIVED: {backup_file_path} -> {target_archive}")
