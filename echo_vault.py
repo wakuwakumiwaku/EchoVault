@@ -3,6 +3,7 @@ import os
 import shutil
 import hashlib
 import logging
+import tempfile
 from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -83,7 +84,9 @@ class SafeBackupHandler(FileSystemEventHandler):
         self.archive_file(event.src_path)
 
     def sync_file(self, src_path):
+        """Finish a staged copy before atomically replacing the backup."""
         dest_path = self._get_dest_path(src_path)
+        staged_path = None
         try:
             if not os.path.exists(src_path):
                 return
@@ -95,10 +98,24 @@ class SafeBackupHandler(FileSystemEventHandler):
                     return
 
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            shutil.copy2(src_path, dest_path)
+            descriptor, staged_path = tempfile.mkstemp(
+                prefix=".echovault-", suffix=".tmp", dir=os.path.dirname(dest_path)
+            )
+            os.close(descriptor)
+            shutil.copy2(src_path, staged_path)
+            os.replace(staged_path, dest_path)
+            staged_path = None
             logging.info(f"SYNCED: {src_path} -> {dest_path}")
         except Exception as e:
             logging.error(f"Failed to sync {src_path}: {e}")
+        finally:
+            if staged_path is not None:
+                try:
+                    os.unlink(staged_path)
+                except FileNotFoundError:
+                    pass
+                except OSError as e:
+                    logging.warning(f"Failed to remove staged backup {staged_path}: {e}")
 
     def archive_file(self, src_path):
         """Moves the BACKUP copy to a _deleted_history folder."""

@@ -24,6 +24,8 @@ Files deleted in the source are **not** deleted in the destination. Instead, the
 ### `Smart Integrity Checks`
 Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
 
+Copies are staged in the destination directory before atomic replacement. A failed copy or replacement leaves the previous backup intact instead of publishing a partial file. Handled failures clean up the staging file.
+
 ### `Fast Initial Sync`
 On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
 
