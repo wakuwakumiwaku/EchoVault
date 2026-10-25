@@ -1,12 +1,11 @@
 import unittest
 import os
 import shutil
-import time
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
-from watchdog.observers import Observer
+from watchdog.events import FileCreatedEvent, FileDeletedEvent, FileModifiedEvent
 from echo_vault import SafeBackupHandler
 
 class TestEchoVault(unittest.TestCase):
@@ -18,18 +17,13 @@ class TestEchoVault(unittest.TestCase):
         os.makedirs(self.src_dir)
         os.makedirs(self.dest_dir)
 
-        # Setup Observer
-        self.observer = Observer()
+        # Dispatch explicit watchdog events; no background observer or timing race.
         self.handler = SafeBackupHandler(self.src_dir, self.dest_dir)
-        self.observer.schedule(self.handler, self.src_dir, recursive=True)
-        self.observer.start()
-        
-        # Give watchdog a moment to start
-        time.sleep(1)
+        sleep = patch("echo_vault.time.sleep")
+        sleep.start()
+        self.addCleanup(sleep.stop)
 
     def tearDown(self):
-        self.observer.stop()
-        self.observer.join()
         try:
             shutil.rmtree(self.test_dir)
         except PermissionError:
@@ -43,8 +37,7 @@ class TestEchoVault(unittest.TestCase):
         with open(src_file, "w") as f:
             f.write("Hello World")
         
-        # Allow sync time (handler has 1s sleep + debounce)
-        time.sleep(2.0)
+        self.handler.dispatch(FileCreatedEvent(src_file))
 
         self.assertTrue(os.path.exists(dest_file), "File should be synced to backup")
         with open(dest_file, "r") as f:
@@ -59,16 +52,19 @@ class TestEchoVault(unittest.TestCase):
         # Initial creation
         with open(src_file, "w") as f:
             f.write("Version 1")
-        time.sleep(2.0)
+        self.handler.dispatch(FileCreatedEvent(src_file))
 
         # Modification
         with open(src_file, "w") as f:
             f.write("Version 2 Updated")
-        time.sleep(2.0)
+        self.handler.dispatch(FileModifiedEvent(src_file))
 
         with open(dest_file, "r") as f:
             content = f.read()
         self.assertEqual(content, "Version 2 Updated")
+        archived = list((Path(self.dest_dir) / "_deleted_history").glob("*/modify.txt"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(archived[0].read_text(), "Version 1")
 
     def test_file_deletion_archive(self):
         print("\n[TEST] Deleting file (Archiving)...")
@@ -78,11 +74,11 @@ class TestEchoVault(unittest.TestCase):
         # Create and sync
         with open(src_file, "w") as f:
             f.write("Important Data")
-        time.sleep(2.0)
+        self.handler.dispatch(FileCreatedEvent(src_file))
         
         # Delete source
         os.remove(src_file)
-        time.sleep(2.0)
+        self.handler.dispatch(FileDeletedEvent(src_file))
 
         # Verify it's gone from main backup folder
         self.assertFalse(os.path.exists(dest_file), "File should be moved from main backup")

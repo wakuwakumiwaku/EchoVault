@@ -53,7 +53,12 @@ class AtomicSyncTests(unittest.TestCase):
                 self.handler.sync_file(str(self.source_file))
 
         self.assertEqual(self.backup_file.read_bytes(), b"previous intact backup")
-        self.assertEqual(list(self.backup.iterdir()), [self.backup_file])
+        # History is saved before replacement. A later replacement failure can
+        # leave a duplicate snapshot, but never removes the active backup.
+        archived = list((self.backup / "_deleted_history").glob("*/notes.txt"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(archived[0].read_bytes(), b"previous intact backup")
+        self.assertEqual(list(self.backup.rglob(".echovault-*.tmp")), [])
 
     def test_successful_sync_preserves_contents_and_metadata(self):
         os.utime(self.source_file, (1_600_000_000, 1_600_000_000))
@@ -65,7 +70,12 @@ class AtomicSyncTests(unittest.TestCase):
             copied_to.append(Path(destination))
             self.assertEqual(self.backup_file.read_bytes(), b"previous intact backup")
             self.assertNotEqual(Path(destination), self.backup_file)
-            self.assertEqual(Path(destination).parent, self.backup_file.parent)
+            if Path(source) == self.source_file:
+                self.assertEqual(Path(destination).parent, self.backup_file.parent)
+                self.assertTrue(Path(destination).name.startswith(".echovault-"))
+            else:
+                self.assertEqual(Path(source), self.backup_file)
+                self.assertEqual(Path(destination).parent.parent, self.backup / "_deleted_history")
             result = real_copy(source, destination)
             self.assertEqual(self.backup_file.read_bytes(), b"previous intact backup")
             return result
@@ -73,14 +83,17 @@ class AtomicSyncTests(unittest.TestCase):
         with patch("echo_vault.shutil.copy2", side_effect=copy_to_staging):
             self.handler.sync_file(str(self.source_file))
 
-        self.assertEqual(len(copied_to), 1)
+        self.assertEqual(len(copied_to), 2)
         self.assertEqual(self.backup_file.read_bytes(), self.source_file.read_bytes())
         self.assertEqual(self.backup_file.stat().st_mtime_ns, self.source_file.stat().st_mtime_ns)
         self.assertEqual(
             stat.S_IMODE(self.backup_file.stat().st_mode),
             stat.S_IMODE(self.source_file.stat().st_mode),
         )
-        self.assertEqual(list(self.backup.iterdir()), [self.backup_file])
+        archived = list((self.backup / "_deleted_history").glob("*/notes.txt"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(archived[0].read_bytes(), b"previous intact backup")
+        self.assertEqual(list(self.backup.rglob(".echovault-*.tmp")), [])
 
     def test_unchanged_file_does_not_copy_or_replace(self):
         self.backup_file.write_bytes(self.source_file.read_bytes())

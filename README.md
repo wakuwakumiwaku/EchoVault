@@ -24,7 +24,9 @@ Files deleted in the source are **not** deleted in the destination. Instead, the
 ### `Smart Integrity Checks`
 Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
 
-Copies are staged in the destination directory before atomic replacement. A failed copy or replacement leaves the previous backup intact instead of publishing a partial file. Handled failures clean up the staging file.
+Copies are staged in the destination directory before atomic replacement. Before replacing an existing backup, EchoVault copies that backup's previous contents and metadata into `_deleted_history/YYYY-MM-DD_HH-MM-SS/`. Colliding names receive numeric suffixes, preserving repeated versions and same-named files from different directories. Unchanged content and first-time backups do not create history.
+
+A failed source copy, history snapshot, or replacement leaves the previous active backup at its original path instead of publishing a partial file; a failed history snapshot aborts the sync without logging `SYNCED`. Handled failures clean up the staging file and attempt to remove incomplete history copies. If replacement fails after a successful snapshot, that historical copy remains; retrying may create another copy of the same old version. History creation and active-file replacement are separate operations, not one crash-atomic transaction.
 
 ### `Fast Initial Sync`
 On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
@@ -105,6 +107,16 @@ EchoVault/
 ├── .gitignore           # Git ignore rules
 └── README.md            # Documentation
 ```
+
+---
+
+## Tests
+
+```bash
+python -m unittest discover -v
+```
+
+Tests use temporary synthetic source/backup directories and explicit watchdog events, not a live observer or the configured backup paths. The modified-file regressions exercise event dispatch, hashing, staging, history preservation, and replacement together, including injected filesystem failures.
 
 ---
 

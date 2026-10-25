@@ -84,7 +84,7 @@ class SafeBackupHandler(FileSystemEventHandler):
         self.archive_file(event.src_path)
 
     def sync_file(self, src_path):
-        """Finish a staged copy before atomically replacing the backup."""
+        """Stage new content and preserve history before replacing the backup."""
         dest_path = self._get_dest_path(src_path)
         staged_path = None
         try:
@@ -103,6 +103,11 @@ class SafeBackupHandler(FileSystemEventHandler):
             )
             os.close(descriptor)
             shutil.copy2(src_path, staged_path)
+            if os.path.exists(dest_path):
+                # Snapshot, rather than move, so replacement failure leaves the
+                # active backup available at its original path.
+                if not self._archive_specific_file(dest_path, preserve_original=True):
+                    return
             os.replace(staged_path, dest_path)
             staged_path = None
             logging.info(f"SYNCED: {src_path} -> {dest_path}")
@@ -122,8 +127,8 @@ class SafeBackupHandler(FileSystemEventHandler):
         dest_path = self._get_dest_path(src_path)
         self._archive_specific_file(dest_path)
 
-    def _archive_specific_file(self, backup_file_path):
-        """Internal helper to move a specific file to history."""
+    def _archive_specific_file(self, backup_file_path, preserve_original=False):
+        """Archive a backup, optionally retaining it until sync replaces it."""
         if os.path.exists(backup_file_path):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             filename = os.path.basename(backup_file_path)
@@ -136,10 +141,22 @@ class SafeBackupHandler(FileSystemEventHandler):
                 target_archive = os.path.join(history_dir, f"{stem}_{suffix}{extension}")
                 suffix += 1
             try:
-                shutil.move(backup_file_path, target_archive)
+                if preserve_original:
+                    shutil.copy2(backup_file_path, target_archive)
+                else:
+                    shutil.move(backup_file_path, target_archive)
                 logging.info(f"ARCHIVED: {backup_file_path} -> {target_archive}")
+                return True
             except Exception as e:
                 logging.error(f"Failed to archive {backup_file_path}: {e}")
+                if preserve_original:
+                    try:
+                        os.unlink(target_archive)
+                    except FileNotFoundError:
+                        pass
+                    except OSError as cleanup_error:
+                        logging.warning(f"Failed to remove partial archive {target_archive}: {cleanup_error}")
+        return False
 
 def run_initial_sync(source, destination, handler):
     """Scans all existing files in source and syncs them to destination using FAST check (size/time)."""
