@@ -130,16 +130,21 @@ class SafeBackupHandler(FileSystemEventHandler):
     def _archive_specific_file(self, backup_file_path, preserve_original=False):
         """Archive a backup, optionally retaining it until sync replaces it."""
         if os.path.exists(backup_file_path):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            filename = os.path.basename(backup_file_path)
-            history_dir = os.path.join(self.dest_root, "_deleted_history", timestamp)
-            os.makedirs(history_dir, exist_ok=True)
-            target_archive = os.path.join(history_dir, filename)
-            stem, extension = os.path.splitext(filename)
-            suffix = 1
-            while os.path.lexists(target_archive):
-                target_archive = os.path.join(history_dir, f"{stem}_{suffix}{extension}")
-                suffix += 1
+            try:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                filename = os.path.basename(backup_file_path)
+                history_dir = os.path.join(self.dest_root, "_deleted_history", timestamp)
+                os.makedirs(history_dir, exist_ok=True)
+                target_archive = os.path.join(history_dir, filename)
+                stem, extension = os.path.splitext(filename)
+                suffix = 1
+                while os.path.lexists(target_archive):
+                    target_archive = os.path.join(history_dir, f"{stem}_{suffix}{extension}")
+                    suffix += 1
+            except OSError as e:
+                # No archive copy has begun; do not clean up a collision target.
+                logging.error(f"Failed to archive {backup_file_path}: {e}")
+                return False
             try:
                 if preserve_original:
                     shutil.copy2(backup_file_path, target_archive)

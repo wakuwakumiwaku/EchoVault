@@ -21,6 +21,8 @@ Leverages `watchdog` to detect file system events (create, move, modify) the mom
 ### `Safe Deletion Protocol`
 Files deleted in the source are **not** deleted in the destination. Instead, they are moved to a timestamped `_deleted_history` archive.
 
+If history-directory creation or archive-name setup fails with a filesystem error, archiving logs the failure and leaves the active backup and existing history untouched. Delete/move event dispatch can continue processing later events; the failed archive is not automatically retried. A rename still syncs the new path before attempting to archive the old backup, so the new backup may already exist when archiving fails.
+
 ### `Smart Integrity Checks`
 Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
 
