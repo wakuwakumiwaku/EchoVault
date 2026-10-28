@@ -38,6 +38,15 @@ def calculate_file_hash(filepath):
 
 class SafeBackupHandler(FileSystemEventHandler):
     def __init__(self, source_root, dest_root):
+        source_path = os.path.normcase(os.path.realpath(source_root))
+        dest_path = os.path.normcase(os.path.realpath(dest_root))
+        try:
+            common_root = os.path.commonpath([source_path, dest_path])
+        except ValueError:
+            # Paths on different Windows drives cannot contain one another.
+            common_root = None
+        if common_root in (source_path, dest_path):
+            raise ValueError("Source and backup roots must be disjoint, not overlapping")
         self.source_root = source_root
         self.dest_root = dest_root
 

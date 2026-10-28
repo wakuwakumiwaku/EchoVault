@@ -76,6 +76,8 @@ paths = {
 -   **Key**: The source directory you want to watch.
 -   **Value**: The destination directory where backups will be stored.
 
+Source and destination roots must be disjoint: neither may equal or contain the other. EchoVault rejects overlapping roots with `ValueError` before initial sync, preventing recursive backups and relative-path mappings that could overwrite source files. Validation resolves existing directory symlinks/junctions and normalizes path components and platform casing; sibling directories and different Windows drives remain valid. This is a startup configuration check, not protection against later filesystem alias changes. Each pair is checked independently; also keep every pair's destination outside all other watched source roots.
+
 > [!TIP]
 > Use raw strings (`r"..."`) for Windows paths to avoid escape character issues.
 
