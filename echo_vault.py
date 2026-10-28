@@ -63,8 +63,17 @@ class SafeBackupHandler(FileSystemEventHandler):
 
     def on_moved(self, event):
         if self._is_ignored(event.src_path):
+            # Entering the included set is a creation, not a rename of an
+            # included backup. Never retire a stale copy at the ignored path.
+            if not event.is_directory and not self._is_ignored(event.dest_path):
+                self.sync_file(event.dest_path)
             return
         if not event.is_directory:
+            if self._is_ignored(event.dest_path):
+                # Leaving the included set is a deletion. Do not copy the
+                # excluded destination or require it to sync before archiving.
+                self.archive_file(event.src_path)
+                return
             # Rename = Delete Old (Archive) + Create New (Sync)
             # Watchdog provides src_path (old) and dest_path (new)
             

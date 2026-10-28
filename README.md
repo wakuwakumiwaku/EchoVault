@@ -23,6 +23,8 @@ Files deleted in the source are **not** deleted in the destination. Instead, the
 
 If history-directory creation or archive-name setup fails with a filesystem error, archiving logs the failure and leaves the active backup and existing history untouched. Delete/move event dispatch can continue processing later events; the failed archive is not automatically retried. A rename syncs the new path before attempting to archive the old backup. If the new-path sync fails or the renamed source is missing, EchoVault logs that archival is deferred and retains the old active backup at its original path. Replaying the move event after recovery can complete the sync and archival; no automatic retry is scheduled. An already-identical new backup counts as a successful sync. If only the subsequent old-backup archival fails, both active paths remain available.
 
+File moves are classified using both endpoints and `IGNORE_DIRS`. Moving a file out of an ignored directory (for example, `.git/notes.txt` to `notes.txt`) syncs the newly included path without touching any backup under the ignored old path. Moving into an ignored directory archives the old included backup as a deletion and never copies the excluded destination. Moves wholly inside ignored directories are ignored; moves between included paths retain the sync-before-archive behavior above. Failed syncs or archives can be retried by replaying the event after recovery; no automatic retry is scheduled. Directory move events themselves remain ignored.
+
 ### `Smart Integrity Checks`
 Uses SHA-256 hashing to verify file content, ensuring only actual changes trigger a write operation.
 
