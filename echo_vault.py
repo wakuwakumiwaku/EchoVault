@@ -68,8 +68,13 @@ class SafeBackupHandler(FileSystemEventHandler):
             # Rename = Delete Old (Archive) + Create New (Sync)
             # Watchdog provides src_path (old) and dest_path (new)
             
-            # 1. Sync the NEW file
-            self.sync_file(event.dest_path)
+            # 1. Sync the NEW file before retiring the active old backup.
+            if not self.sync_file(event.dest_path):
+                logging.warning(
+                    f"Deferred archival for moved source {event.src_path}: "
+                    f"new backup was not synced ({event.dest_path})"
+                )
+                return
             
             # 2. Archive the OLD file from backup (if it exists)
             # We must calculate where the old file WAS in the backup
@@ -84,18 +89,18 @@ class SafeBackupHandler(FileSystemEventHandler):
         self.archive_file(event.src_path)
 
     def sync_file(self, src_path):
-        """Stage new content and preserve history before replacing the backup."""
+        """Return True only when the backup is current or successfully replaced."""
         dest_path = self._get_dest_path(src_path)
         staged_path = None
         try:
             if not os.path.exists(src_path):
-                return
+                return False
 
             if os.path.exists(dest_path):
                 src_hash = calculate_file_hash(src_path)
                 dest_hash = calculate_file_hash(dest_path)
                 if src_hash and dest_hash and src_hash == dest_hash:
-                    return
+                    return True
 
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             descriptor, staged_path = tempfile.mkstemp(
@@ -107,12 +112,14 @@ class SafeBackupHandler(FileSystemEventHandler):
                 # Snapshot, rather than move, so replacement failure leaves the
                 # active backup available at its original path.
                 if not self._archive_specific_file(dest_path, preserve_original=True):
-                    return
+                    return False
             os.replace(staged_path, dest_path)
             staged_path = None
             logging.info(f"SYNCED: {src_path} -> {dest_path}")
+            return True
         except Exception as e:
             logging.error(f"Failed to sync {src_path}: {e}")
+            return False
         finally:
             if staged_path is not None:
                 try:
