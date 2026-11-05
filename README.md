@@ -32,6 +32,15 @@ Copies are staged in the destination directory before atomic replacement. Before
 
 A failed source copy, history snapshot, or replacement leaves the previous active backup at its original path instead of publishing a partial file; a failed history snapshot aborts the sync without logging `SYNCED`. Handled failures clean up the staging file and attempt to remove incomplete history copies. If replacement fails after a successful snapshot, that historical copy remains; retrying may create another copy of the same old version. History creation and active-file replacement are separate operations, not one crash-atomic transaction.
 
+### `Contained Backup Paths`
+Before syncing or archiving, EchoVault rejects events outside the configured source
+root and destination paths whose resolved symlinks/junctions escape the backup root.
+The same check covers `_deleted_history`: an escaping history directory aborts an
+update and retains the active backup. Refusals are logged without stopping later
+events or the initial scan. Links resolving within the backup root remain usable.
+These are preflight checks, not protection against concurrent malicious filesystem
+changes between validation and I/O.
+
 ### `Fast Initial Sync`
 On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
 

@@ -49,10 +49,29 @@ class SafeBackupHandler(FileSystemEventHandler):
             raise ValueError("Source and backup roots must be disjoint, not overlapping")
         self.source_root = source_root
         self.dest_root = dest_root
+        self._source_path = os.path.normcase(os.path.abspath(source_root))
+        self._dest_path = dest_path
+
+    def _checked_backup_path(self, path):
+        resolved = os.path.normcase(os.path.realpath(path))
+        try:
+            contained = os.path.commonpath([self._dest_path, resolved]) == self._dest_path
+        except ValueError:
+            contained = False
+        if not contained or resolved == self._dest_path:
+            raise ValueError(f"Backup path escapes its configured root: {path}")
+        return path
 
     def _get_dest_path(self, src_path):
+        source = os.path.normcase(os.path.abspath(src_path))
+        try:
+            contained = os.path.commonpath([self._source_path, source]) == self._source_path
+        except ValueError:
+            contained = False
+        if not contained or source == self._source_path:
+            raise ValueError(f"Event path is outside its configured source root: {src_path}")
         rel_path = os.path.relpath(src_path, self.source_root)
-        return os.path.join(self.dest_root, rel_path)
+        return self._checked_backup_path(os.path.join(self.dest_root, rel_path))
 
     def _is_ignored(self, src_path):
         parts = src_path.split(os.sep)
@@ -96,9 +115,7 @@ class SafeBackupHandler(FileSystemEventHandler):
             
             # 2. Archive the OLD file from backup (if it exists)
             # We must calculate where the old file WAS in the backup
-            old_backup_path = self._get_dest_path(event.src_path)
-            if os.path.exists(old_backup_path):
-                self._archive_specific_file(old_backup_path)
+            self.archive_file(event.src_path)
 
     def on_deleted(self, event):
         if event.is_directory or self._is_ignored(event.src_path):
@@ -108,9 +125,9 @@ class SafeBackupHandler(FileSystemEventHandler):
 
     def sync_file(self, src_path):
         """Return True only when the backup is current or successfully replaced."""
-        dest_path = self._get_dest_path(src_path)
         staged_path = None
         try:
+            dest_path = self._get_dest_path(src_path)
             if not os.path.exists(src_path):
                 return False
 
@@ -149,16 +166,27 @@ class SafeBackupHandler(FileSystemEventHandler):
 
     def archive_file(self, src_path):
         """Moves the BACKUP copy to a _deleted_history folder."""
-        dest_path = self._get_dest_path(src_path)
-        self._archive_specific_file(dest_path)
+        try:
+            dest_path = self._get_dest_path(src_path)
+        except ValueError as error:
+            logging.error(f"Failed to archive {src_path}: {error}")
+            return False
+        return self._archive_specific_file(dest_path)
 
     def _archive_specific_file(self, backup_file_path, preserve_original=False):
         """Archive a backup, optionally retaining it until sync replaces it."""
+        try:
+            self._checked_backup_path(backup_file_path)
+        except ValueError as error:
+            logging.error(f"Failed to archive {backup_file_path}: {error}")
+            return False
         if os.path.exists(backup_file_path):
             try:
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 filename = os.path.basename(backup_file_path)
-                history_dir = os.path.join(self.dest_root, "_deleted_history", timestamp)
+                history_dir = self._checked_backup_path(
+                    os.path.join(self.dest_root, "_deleted_history", timestamp)
+                )
                 os.makedirs(history_dir, exist_ok=True)
                 target_archive = os.path.join(history_dir, filename)
                 stem, extension = os.path.splitext(filename)
@@ -166,7 +194,7 @@ class SafeBackupHandler(FileSystemEventHandler):
                 while os.path.lexists(target_archive):
                     target_archive = os.path.join(history_dir, f"{stem}_{suffix}{extension}")
                     suffix += 1
-            except OSError as e:
+            except (OSError, ValueError) as e:
                 # No archive copy has begun; do not clean up a collision target.
                 logging.error(f"Failed to archive {backup_file_path}: {e}")
                 return False
@@ -197,8 +225,12 @@ def run_initial_sync(source, destination, handler):
         
         for file in files:
             src_path = os.path.join(root, file)
-            dest_path = handler._get_dest_path(src_path)
-            
+            try:
+                dest_path = handler._get_dest_path(src_path)
+            except ValueError as error:
+                logging.error(f"Skipping unsafe backup path {src_path}: {error}")
+                continue
+
             # Fast check: If destination exists, compare size and last modified time
             if os.path.exists(dest_path):
                 try:
