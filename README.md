@@ -38,6 +38,10 @@ root and destination paths whose resolved symlinks/junctions escape the backup r
 The same check covers `_deleted_history`: an escaping history directory aborts an
 update and retains the active backup. Refusals are logged without stopping later
 events or the initial scan. Links resolving within the backup root remain usable.
+When both endpoints of a file move resolve to the same backup path (including
+in-root directory aliases), sync keeps that active backup rather than archiving
+it as the old path. Changed contents still receive the ordinary pre-replacement
+history snapshot.
 These are preflight checks, not protection against concurrent malicious filesystem
 changes between validation and I/O.
 

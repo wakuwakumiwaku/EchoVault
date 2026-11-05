@@ -113,6 +113,20 @@ class SafeBackupHandler(FileSystemEventHandler):
                 )
                 return
             
+            # In-root directory aliases and case-only Windows moves can map
+            # both event endpoints to the same active backup. Sync has already
+            # preserved any prior version; archiving here would remove the new one.
+            try:
+                old_backup = self._get_dest_path(event.src_path)
+                new_backup = self._get_dest_path(event.dest_path)
+                old_resolved = os.path.normcase(os.path.realpath(old_backup))
+                new_resolved = os.path.normcase(os.path.realpath(new_backup))
+                if old_resolved == new_resolved:
+                    return
+            except ValueError as error:
+                logging.error(f"Failed to archive moved source {event.src_path}: {error}")
+                return
+
             # 2. Archive the OLD file from backup (if it exists)
             # We must calculate where the old file WAS in the backup
             self.archive_file(event.src_path)
