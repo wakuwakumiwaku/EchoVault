@@ -135,6 +135,10 @@ EchoVault/
 python -m unittest discover -v
 ```
 
+Initial scans apply `IGNORE_DIRS` to regular files as well as directories (including
+the `.git` pointer file used by Git worktrees), matching later event exclusions.
+Existing excluded backups are left untouched.
+
 Tests use temporary synthetic source/backup directories and explicit watchdog events, not a live observer or the configured backup paths. The modified-file regressions exercise event dispatch, hashing, staging, history preservation, and replacement together, including injected filesystem failures.
 
 ---

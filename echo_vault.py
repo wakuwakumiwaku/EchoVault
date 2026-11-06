@@ -239,6 +239,10 @@ def run_initial_sync(source, destination, handler):
         
         for file in files:
             src_path = os.path.join(root, file)
+            # Git worktrees use a regular .git file. Apply the same path
+            # exclusions as event dispatch, not only os.walk's directory filter.
+            if handler._is_ignored(src_path):
+                continue
             try:
                 dest_path = handler._get_dest_path(src_path)
             except ValueError as error:
