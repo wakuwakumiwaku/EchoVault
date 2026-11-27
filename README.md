@@ -46,7 +46,7 @@ These are preflight checks, not protection against concurrent malicious filesyst
 changes between validation and I/O.
 
 ### `Fast Initial Sync`
-On startup, performs a rapid state comparison (using size & modification time) to bring the backup up to date before watching for real-time events.
+On startup, EchoVault skips hashing when file sizes and filesystem-reported modification times match exactly (compared in nanoseconds). A difference in either sends the file through the normal sync checks. The scan can still miss changed content if the size stays the same and the timestamp is preserved or the filesystem is too coarse to record the change.
 
 ### `Silent Operation`
 Includes a VBScript launcher (`silent_launcher.vbs`) to run the process invisibly in the background.

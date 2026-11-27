@@ -255,9 +255,9 @@ def run_initial_sync(source, destination, handler):
                     src_stat = os.stat(src_path)
                     dest_stat = os.stat(dest_path)
                     
-                    if src_stat.st_size == dest_stat.st_size and \
-                       abs(src_stat.st_mtime - dest_stat.st_mtime) < 1.0:
-                        continue # Skip to next file
+                    if (src_stat.st_size == dest_stat.st_size and
+                            src_stat.st_mtime_ns == dest_stat.st_mtime_ns):
+                        continue
                 except OSError:
                     pass
             
